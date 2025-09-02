@@ -1,6 +1,7 @@
 # flashcard
 a simple program about flashcards
-[網頁版](https://klhrd.github.io/flashcard/)
+
+[website](https://klhrd.github.io/flashcard/)
 
 # version
 
