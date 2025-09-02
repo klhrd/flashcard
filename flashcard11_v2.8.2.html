@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>單字卡學習程式</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', 'Inter', sans-serif;
+            touch-action: manipulation; /* 禁用雙擊縮放 */
+        }
+        .card {
+            /* 字體大小現在由 JavaScript 控制 */
+            line-height: 1.2;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .card .placeholder { display: block; }
+        .card .content { display: none; }
+        .card.revealed .placeholder { display: none; }
+        .card.revealed .content { display: block; }
+        button, .card, #main-screen {
+            -webkit-tap-highlight-color: transparent;
+        }
+        #menu-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+        #menu-panel.closed { transform: translateX(-100%); }
+        #menu-panel.open { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <div id="app" class="w-full max-w-6xl mx-auto">
+
+        <!-- 上傳畫面 -->
+        <div id="upload-screen" class="text-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
+            <h1 class="text-3xl font-bold mb-4 text-gray-900 dark:text-white">單字卡學習程式</h1>
+            <p class="mb-6 text-gray-600 dark:text-gray-300">請上傳您的 .txt 單字檔。<br>檔案內容應以分號 (;) 分隔，每一行代表一組卡片。</p>
+            <div class="flex items-center justify-center w-full">
+                <label for="file-upload" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:hover:border-gray-500 dark:hover:bg-gray-600 transition-colors">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-10 h-10 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                        <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">點擊此處上傳</span> 或拖曳檔案至此</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">僅限 .txt 檔案</p>
+                    </div>
+                    <input id="file-upload" type="file" class="hidden" accept=".txt">
+                </label>
+            </div>
+             <div class="mt-4 text-gray-500 dark:text-gray-400">或</div>
+            <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <select id="example-selector" class="block w-full px-4 py-3 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-600 focus:outline-none focus:ring-teal-500 focus:border-teal-500 rounded-lg">
+                    <option value="" disabled selected>--- 選擇一個內建範例 ---</option>
+                    <option value="verbs">範例一：動詞三態</option>
+                    <option value="elements">範例二：元素週期表</option>
+                    <option value="capitals">範例三：國家與首都</option>
+                </select>
+                <button id="load-selected-example-btn" class="px-6 py-3 bg-teal-500 text-white font-semibold rounded-lg shadow-md hover:bg-teal-600 transition-colors whitespace-nowrap">載入範例</button>
+            </div>
+            <div id="error-message" class="mt-4 text-red-500 font-semibold"></div>
+        </div>
+
+        <!-- 主學習畫面 -->
+        <div id="main-screen" class="hidden w-full h-[95vh] flex flex-col bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-lg p-2 relative overflow-hidden">
+            <div id="card-area" class="flex-grow flex items-center justify-center w-full h-full">
+                <div id="card-container" class="grid gap-2 w-full h-full">
+                    <!-- 卡片將會動態生成於此 -->
+                </div>
+            </div>
+            <!-- 控制按鈕區 -->
+            <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center space-x-2">
+                <button id="prev-btn" class="px-4 py-3 bg-gray-300 dark:bg-gray-600 rounded-full shadow-md hover:bg-gray-400 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+                <div class="flex space-x-4">
+                    <button id="incorrect-btn" class="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-4xl bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-all transform hover:scale-110">❌</button>
+                    <button id="correct-btn" class="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-4xl bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-all transform hover:scale-110">✅</button>
+                </div>
+                <button id="next-btn" class="px-4 py-3 bg-gray-300 dark:bg-gray-600 rounded-full shadow-md hover:bg-gray-400 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+            </div>
+            <!-- 頂部 UI -->
+            <div class="absolute top-4 left-4 right-4 flex justify-between items-center">
+                <button id="menu-btn" class="p-2 bg-gray-300 dark:bg-gray-700 rounded-full shadow-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors z-30"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div id="deck-info" class="text-sm font-medium bg-gray-300 dark:bg-gray-700 px-3 py-1 rounded-full"></div>
+            </div>
+            <div id="history-alert" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-xl text-center z-40"><p>無法再返回！</p><p class="text-sm">（最多保留20組歷史紀錄）</p></div>
+
+            <!-- 選單面板 -->
+            <div id="menu-overlay" class="hidden absolute inset-0 bg-black bg-opacity-50 z-10"></div>
+            <div id="menu-panel" class="closed absolute top-0 left-0 h-full w-72 bg-white dark:bg-gray-800 shadow-lg z-20 p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">選單</h2><button id="close-menu-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+                
+                <div class="flex-grow">
+                    <ul class="space-y-2">
+                        <li><button id="show-all-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">📄 顯示所有卡片</button></li>
+                        <li><button id="toggle-layout-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">🔃 切換排列方向</button></li>
+                        <li><button id="toggle-auto-reveal-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">▶️ 自動翻開首張：<span class="font-bold text-red-500">關</span></button></li>
+                        <!-- 字型大小調整 -->
+                        <li class="w-full text-left px-4 py-2 flex items-center justify-between text-gray-800 dark:text-gray-200">
+                            <span class="mr-2">🅰️ 大小</span>
+                            <div class="flex items-center space-x-2">
+                                <button id="font-size-decrease" class="px-3 py-1 bg-gray-200 dark:bg-gray-600 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 font-bold">-</button>
+                                <span id="font-size-value" class="w-16 text-center text-sm">預設</span>
+                                <button id="font-size-increase" class="px-3 py-1 bg-gray-200 dark:bg-gray-600 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 font-bold">+</button>
+                            </div>
+                        </li>
+                        <li><button id="how-to-use-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">❔ 使用教學</button></li>
+                    </ul>
+                </div>
+                
+                <div class="mt-auto border-t pt-2 border-gray-200 dark:border-gray-700">
+                     <ul class="space-y-2">
+                        <li><button id="open-new-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">📂 開啟新檔/範例</button></li>
+                        <li><button id="download-btn" class="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">💾 下載學習紀錄</button></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 所有卡片列表 Modal -->
+    <div id="all-cards-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-30"><div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl h-[90vh] flex flex-col"><div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h2 class="text-xl font-bold">所有卡片</h2><button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div><div class="flex-grow overflow-y-auto p-4"><table id="all-cards-table" class="w-full text-left"></table></div></div></div>
+    
+    <!-- 下載格式選擇 Modal -->
+    <div id="download-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-40">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h2 class="text-xl font-bold">選擇下載格式</h2><button id="close-download-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+            <div class="p-4 grid grid-cols-2 gap-4">
+                <button data-format="csv" class="download-format-btn px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">CSV</button>
+                <button data-format="txt" class="download-format-btn px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">TXT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用教學 Modal -->
+    <div id="how-to-use-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-30">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl h-auto max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-xl font-bold">使用教學</h2>
+                <button id="close-how-to-use-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <!-- 您可以在此處修改教學內容 -->
+            <div class="flex-grow overflow-y-auto p-6 space-y-4 text-gray-700 dark:text-gray-300">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">程式總覽</h3>
+                <p>這是一份針對你提供的「單字卡學習程式」的詳細使用教學。這款程式能讓你上傳自製的單字檔案，並透過單字卡模式來進行學習與測驗。</p>
+                <ul class="list-disc list-inside space-y-2">
+                    <li><strong>上傳畫面：</strong>用來載入你的單字檔案，或選擇內建的範例。</li>
+                    <li><strong>主學習畫面：</strong>單字卡學習和操作的主要介面。</li>
+                </ul>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">一、檔案準備與卡片載入</h3>
+                <ul class="list-disc list-inside space-y-2">
+                    <li><strong>📝 檔案格式</strong>
+                        <ul class="list-circle list-inside ml-4">
+                            <li>你需要一個 <strong>.txt</strong> 文字檔，並遵循以下格式：
+                                <ul class="list-square list-inside ml-4">
+                                    <li>每組單字卡佔用一行。</li>
+                                    <li>卡片上的每個內容（欄位）之間以 <strong>分號 (;)</strong> 分隔。</li>
+                                    <li>例如：<code>單字;發音;解釋</code> 或 <code>中文;英文</code>。</li>
+                                    <li>你可以在任何欄位中使用 <strong>雙斜線 (//)</strong> 來換行，例如：<code>動詞;to learn//learned//learned</code>。</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li><strong>📁 載入方式</strong>
+                        <ul class="list-circle list-inside ml-4">
+                            <li><strong>上傳檔案：</strong>點擊「點擊此處上傳」區域，或將你的 <strong>.txt</strong> 檔拖曳到該區域。</li>
+                            <li><strong>載入範例：</strong>若沒有檔案，你可以從下拉選單中選擇內建的範例，然後點擊「載入範例」。</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">二、主學習畫面操作</h3>
+                <p>成功載入檔案後，程式會切換到主學習畫面，讓你開始學習。</p>
+                <ul class="list-disc list-inside space-y-2">
+                    <li><strong>🃏 單字卡操作</strong>
+                        <ul class="list-circle list-inside ml-4">
+                            <li><strong>翻開卡片：</strong>點擊卡片，卡片上的內容會從「問號」變成答案。</li>
+                            <li><strong>下一張：</strong>在畫面任一處點擊（除了卡片本身和按鈕），會自動跳到下一張卡片。</li>
+                        </ul>
+                    </li>
+                    <li><strong>答對／答錯</strong>
+                        <ul class="list-circle list-inside ml-4">
+                            <li>點擊右下角的 <strong>✅</strong>，表示你答對了這張卡片。答對的卡片會從待學習列表中移除，直到你學完所有卡片為止。</li>
+                            <li>點擊左下角的 <strong>❌</strong>，表示你答錯了。答錯的卡片會繼續留在待學習列表，下次還有機會再次抽到。</li>
+                        </ul>
+                    </li>
+                    <li><strong>🔄 導航與紀錄</strong>
+                        <ul class="list-circle list-inside ml-4">
+                            <li><strong>回到上一張：</strong>點擊左下角的 <strong>《</strong> 按鈕，可以返回上一張卡片。</li>
+                            <li><strong>跳到下一張：</strong>點擊右下角的 <strong>》</strong> 按鈕，可以不評分直接跳到下一張卡片。</li>
+                            <li><strong>歷史紀錄：</strong>程式最多會保留 <strong>20 組</strong> 卡片歷史紀錄，方便你隨時回顧。</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">三、選單功能</h3>
+                <p>點擊左上角的 <strong>☰</strong> 圖示，會彈出功能選單。</p>
+                <ul class="list-disc list-inside space-y-2">
+                    <li><strong>📄 顯示所有卡片：</strong>開啟一個新視窗，顯示所有卡片及其學習狀態（✅ 答對、❌ 答錯、⬜ 未學習）。</li>
+                    <li><strong>🔃 切換排列方向：</strong>切換多欄位卡片的排列方式，可以在 <strong>水平</strong> 和 <strong>垂直</strong> 之間切換。</li>
+                    <li><strong>▶️ 自動翻開首張：</strong>開啟或關閉這個選項。當開啟時，每次載入新卡片，第一個欄位會自動翻開。</li>
+                    <li><strong>🅰️ 大小：</strong>調整<strong>卡片上</strong>顯示的字型大小。</li>
+                    <li><strong>❔ 使用教學：</strong>開啟此份使用教學</li>
+
+                    <li><strong>📂 開啟新檔/範例：</strong>回到上傳畫面，讓你可以載入新的檔案或範例。</li>
+                    <li><strong>💾 下載學習紀錄：</strong>根據當前的學習狀態，下載所有卡片的列表。你可以選擇 <strong>.CSV</strong> 或 <strong>.TXT</strong> 兩種格式。</li>
+                </ul>
+                <p>希望這份教學能幫助你順利使用這個單字卡程式！祝你學習愉快！</p>
+
+                <!-- 隱藏 -->
+                <br>
+                <div class="text-gray-400 dark:text-gray-600">
+                    <p>v2.8.2 2025-09-01</p>
+                </div>
+            </div>
+            <!-- 教學內容結束 -->
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM 元素
+            const uploadScreen = document.getElementById('upload-screen');
+            const mainScreen = document.getElementById('main-screen');
+            const fileUpload = document.getElementById('file-upload');
+            const exampleSelector = document.getElementById('example-selector');
+            const loadSelectedExampleBtn = document.getElementById('load-selected-example-btn');
+            const errorMessage = document.getElementById('error-message');
+            const cardContainer = document.getElementById('card-container');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const correctBtn = document.getElementById('correct-btn');
+            const incorrectBtn = document.getElementById('incorrect-btn');
+            const deckInfo = document.getElementById('deck-info');
+            const historyAlert = document.getElementById('history-alert');
+            const menuBtn = document.getElementById('menu-btn');
+            const closeMenuBtn = document.getElementById('close-menu-btn');
+            const menuPanel = document.getElementById('menu-panel');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const showAllBtn = document.getElementById('show-all-btn');
+            const openNewBtn = document.getElementById('open-new-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const toggleLayoutBtn = document.getElementById('toggle-layout-btn');
+            const toggleAutoRevealBtn = document.getElementById('toggle-auto-reveal-btn');
+            const allCardsModal = document.getElementById('all-cards-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const allCardsTable = document.getElementById('all-cards-table');
+            const downloadModal = document.getElementById('download-modal');
+            const closeDownloadModalBtn = document.getElementById('close-download-modal-btn');
+            // 新增：教學與字體大小相關元素
+            const howToUseBtn = document.getElementById('how-to-use-btn');
+            const howToUseModal = document.getElementById('how-to-use-modal');
+            const closeHowToUseModalBtn = document.getElementById('close-how-to-use-modal-btn');
+            const fontSizeDecrease = document.getElementById('font-size-decrease');
+            const fontSizeIncrease = document.getElementById('font-size-increase');
+            const fontSizeValue = document.getElementById('font-size-value');
+
+
+            // 應用程式狀態
+            let fieldsPerCard = 0;
+            let fullDeck = [];
+            let learningDeck = [];
+            let cardStatus = new Map();
+            let history = [];
+            let historyIndex = -1;
+            const MAX_HISTORY = 20;
+            let cardLayout = 'horizontal'; // 'horizontal' or 'vertical'
+            let autoRevealFirstCard = false;
+            // 新增：字體大小狀態
+            let cardFontSize = 2.5; // 單位為 rem
+            const DEFAULT_FONT_SIZE = 2.5;
+            const FONT_SIZE_STEP = 0.2;
+            const MIN_FONT_SIZE = 1.0;
+            const MAX_FONT_SIZE = 5.0;
+
+            // --- 內建範例檔案 ---
+            const EXAMPLES = {
+                'verbs': `拜訪;visit-visited-visited
+觀看;watch-watched-watched
+玩;play-played-played
+洗、演奏;wash-washed-washed
+喜歡;like-liked-liked
+愛;love-loved-loved
+恨;hate-hated-hated
+停止;stop-stopped-stopped
+計畫;plan-planned-planned
+哭泣;cry-cried-cried
+嘗試;try-tried-tried
+研讀;study-studied-studied
+價值、花費;cost-cost-cost
+切、割;cut-cut-cut
+撞、打;hit-hit-hit
+傷害;hurt-hurt-hurt
+讓;let-let-let
+放置、樹立;put-put-put
+設置;set-set-set
+閱讀;read-read-read
+打賭;bet-bet-bet
+適合、合身;fit-fit-fit
+停止、放棄;quit-quit-quit
+來;come-came-come
+變成;become-became-become
+跑步;run-ran-run
+帶來;bring-brought-brought
+買;buy-bought-bought
+想、認為;think-thought-thought
+打架、爭吵;fight-fought-fought
+抓、接、染上;catch-caught-caught
+教書;teach-taught-taught
+覺得;feel-felt-felt
+保持;keep-kept-kept
+睡覺;sleep-slept-slept
+哭泣;weep-wept-wept
+離開;leave-left-left
+建造;build-built-built
+借出;lend-lent-lent
+寄送;send-sent-sent
+（人）花費;spend-spent-spent
+有;have-had-had
+做;make-made-made
+輸掉;lose-lost-lost
+聽見;hear-heard-heard
+意指;mean-meant-meant
+付錢;pay-paid-paid
+說（的話）;say-said-said
+餵;feed-fed-fed
+領導;lead-led-led
+遇見;meet-met-met
+挖;dig-dug-dug
+搖擺;swing-swung-swung
+懸吊;hang-hung-hung
+發現;find-found-found
+得到;get-got-gotten
+忘記;forget-forgot-forgotten
+握住、舉辦;hold-held-held
+坐;sit-sat-sat
+賣出;sell-sold-sold
+告訴;tell-told-told
+贏;win-won-won
+站、起立;stand-stood-stood
+了解;understand-understood-understood
+躺;lie-lay-lain
+說謊;lie-lied-lied
+開始;begin-began-begun
+喝;drink-drank-drunk
+按鈴;ring-rang-rung
+唱歌;sing-sang-sung
+游泳;swim-swam-swum
+打破;break-broke-broken
+說、講話;speak-spoke-spoken
+偷;steal-stole-stolen
+醒來;wake-woke-woken
+出生;bear-bore-born
+穿、戴;wear-wore-worn
+做;do-did-done
+去;go-went-gone
+咬;bite-bit-bitten
+躲藏;hide-hid-hidden
+騎;ride-rode-ridden
+寫;write-wrote-written
+是;be-was-were-been
+跌倒、掉落;fall-fell-fallen
+吃;eat-ate-eaten
+選擇;choose-chose-chosen
+開車;drive-drove-driven
+給;give-gave-given
+搖動、震動;shake-shook-shaken
+拿走、搭乘;take-took-taken
+看到;see-saw-seen
+畫圖;draw-drew-drawn
+吹、爆炸;blow-blew-blown
+種、成長;grow-grew-grown
+知道、認識;know-knew-known
+丟;throw-threw-thrown
+飛;fly-flew-flown
+結凍;freeze-froze-frozen
+原諒;forgive-forgave-forgiven`,
+                'elements':`氫;H
+氦;He
+鋰;Li
+鈹;Be
+硼;B
+碳;C
+氮;N
+氧;O
+氟;F
+氖;Ne
+鈉;Na
+鎂;Mg
+鋁;Al
+矽;Si
+磷;P
+硫;S
+氯;Cl
+氬;Ar
+鉀;K
+鈣;Ca
+鈧;Sc
+鈦;Ti
+釩;V
+鉻;Cr
+錳;Mn
+鐵;Fe
+鈷;Co
+鎳;Ni
+銅;Cu
+鋅;Zn
+鎵;Ga
+鍺;Ge
+砷;As
+硒;Se
+溴;Br
+氪;Kr
+銣;Rb
+鍶;Sr
+釔;Y
+鋯;Zr
+鈮;Nb
+鉬;Mo
+鎝;Tc
+釕;Ru
+銠;Rh
+鈀;Pd
+銀;Ag
+鎘;Cd
+銦;In
+錫;Sn
+銻;Sb
+碲;Te
+碘;I
+氙;Xe
+銫;Cs
+鋇;Ba
+鑭;La
+鈰;Ce
+鐠;Pr
+釹;Nd
+鉕;Pm
+釤;Sm
+銪;Eu
+釓;Gd
+鋱;Tb
+鏑;Dy
+鈥;Ho
+鉺;Er
+銩;Tm
+鐿;Yb
+鎦;Lu
+鉿;Hf
+鉭;Ta
+鎢;W
+錸;Re
+鋨;Os
+銥;Ir
+鉑;Pt
+金;Au
+汞;Hg
+鉈;Tl
+鉛;Pb
+鉍;Bi
+釙;Po
+砈;At
+氡;Rn
+鍅;Fr
+鐳;Ra
+錒;Ac
+釷;Th
+鏷;Pa
+鈾;U
+鎿;Np
+鈽;Pu
+鋂;Am
+鋦;Cm
+鉳;Bk
+鉲;Cf
+鎄;Es
+鐨;Fm
+鍆;Md
+鍩;No
+鐒;Lr
+鑪;Rf
+𨧀;Db
+𨭎;Sg
+𨨏;Bh
+𨭆;Hs
+䥑;Mt
+鐽;Ds
+錀;Rg
+鎶;Cn
+鉨;Nh
+鈇;Fl
+鏌;Mc
+鉝;Lv
+鿬;Ts
+鿫;Og`,
+                'capitals':`阿爾及利亞;阿爾及爾
+安哥拉;魯安達
+貝南;波多諾伏
+波札那;嘉柏隆里
+布吉納法索;瓦加杜古
+蒲隆地;吉特加
+喀麥隆;雅溫德
+維德角;培亞
+中非;班基
+查德;恩加美納
+葛摩;莫洛尼
+民主剛果;金夏沙
+剛果;布拉薩市
+象牙海岸;雅穆索戈
+吉布地;吉布地市
+埃及;開羅
+赤道幾內亞;馬拉博
+厄利垂亞;阿斯瑪拉
+衣索比亞;阿迪斯阿貝巴
+加彭;利伯維爾
+甘比亞;班竹
+加納;阿克拉
+幾內亞;柯那克里
+幾內亞比索;比紹
+肯亞;奈洛比
+賴索托;馬賽魯
+賴比瑞亞;蒙羅維亞
+利比亞;的黎波里
+馬達加斯加;安塔那那利佛
+馬拉威;里朗威
+馬利;巴馬科
+茅利塔尼亞;諾克少
+模里西斯;路易士港
+摩洛哥;拉巴特
+莫三比克;馬布多
+納米比亞;溫荷克
+尼日;尼阿美
+奈及利亞;阿布加
+盧安達;吉佳利
+聖多美普林西比;聖多美
+塞內加爾;達卡
+塞席爾;維多利亞
+獅子山;弗里敦
+索馬利亞;摩加迪休
+南非;普利托利亞//開普敦//布隆泉
+南蘇丹;朱巴
+蘇丹;喀土穆
+史瓦帝尼;墨巴本//洛班巴
+坦尚尼亞;杜篤瑪
+多哥;洛美
+突尼西亞;突尼斯市
+烏干達;康培拉
+尚比亞;路沙卡
+辛巴威;哈拉雷
+索馬利蘭;哈爾格薩
+撒拉威阿拉伯民主共和國;阿尤恩
+阿富汗;喀布爾
+亞美尼亞;葉里溫
+亞塞拜然;巴庫
+巴林;麥納瑪
+孟加拉;達卡
+中華人民共和國;北京
+不丹;辛布
+汶萊;斯里巴加灣
+柬埔寨;金邊
+賽普勒斯;尼柯西亞
+喬治亞;提比里斯
+印度;新德里
+印度尼西亞;雅加達
+伊朗;德黑蘭
+伊拉克;巴格達
+以色列;耶路撒冷
+日本;東京（事實上）
+約旦;安曼
+哈薩克;阿斯塔納
+朝鮮;平壤
+韓國;首爾
+科威特;科威特城
+吉爾吉斯;比斯凱克
+寮國;永珍
+黎巴嫩;貝魯特
+馬來西亞;吉隆坡
+馬爾地夫;馬利
+蒙古;烏蘭巴托
+緬甸;奈比都
+尼泊爾;加德滿都
+阿曼;馬斯喀特
+巴基斯坦;伊斯蘭瑪巴德
+菲律賓;馬尼拉
+卡達;杜哈
+沙烏地阿拉伯;利雅德
+新加坡;新加坡
+斯里蘭卡;斯里賈亞瓦德納普拉科特
+敘利亞;大馬士革
+塔吉克;杜尚貝
+泰國;曼谷
+東帝汶;狄力
+土耳其;安卡拉
+土庫曼;阿什哈巴特
+阿拉伯聯合大公國;阿布達比
+烏茲別克;塔什干
+越南;河內
+葉門;沙那
+阿布哈茲;蘇呼米
+北賽普勒斯;尼柯西亞
+巴勒斯坦;耶路撒冷
+中華民國;南京（臨時偏安：臺北）
+南奧塞提亞;茲辛瓦利
+阿爾巴尼亞;地拉那
+安道爾;老安道爾
+奧地利;維也納
+白俄羅斯;明斯克
+比利時;布魯塞爾
+波士尼亞與赫塞哥維納;塞拉耶佛
+保加利亞;索菲亞
+克羅埃西亞;札格瑞布
+捷克;布拉格
+丹麥;哥本哈根
+愛沙尼亞;塔林
+芬蘭;赫爾辛基
+法國;巴黎
+德國;柏林
+希臘;雅典
+匈牙利;布達佩斯
+冰島;雷克雅維克
+愛爾蘭;都柏林
+義大利;羅馬
+拉脫維亞;里加
+列支敦斯登;瓦都茲
+立陶宛;維爾紐斯
+盧森堡;盧森堡市
+北馬其頓;史高比耶
+馬爾他;瓦勒他
+摩爾多瓦;奇西瑙
+摩納哥;摩納哥
+蒙特內哥羅;波德里查
+荷蘭;阿姆斯特丹
+挪威;奧斯陸
+波蘭;華沙
+葡萄牙;里斯本
+羅馬尼亞;布加勒斯特
+俄羅斯;莫斯科
+聖馬利諾;聖馬利諾
+塞爾維亞;貝爾格勒
+斯洛伐克;布拉提斯拉瓦
+斯洛維尼亞;盧比安納
+西班牙;馬德里
+瑞典;斯德哥爾摩
+瑞士;伯爾尼
+烏克蘭;基輔
+英國;倫敦
+梵蒂岡;梵蒂岡
+科索沃;普里斯提納
+聶斯特河沿岸;提拉斯浦
+安地卡及巴布達;聖約翰斯
+巴哈馬;拿騷
+巴貝多;布里奇敦
+貝里斯;貝爾墨邦
+加拿大;渥太華
+哥斯大黎加;聖荷西
+古巴;哈瓦那
+多米尼克;羅梭
+多明尼加;聖多明哥
+薩爾瓦多;聖薩爾瓦多
+格瑞那達;聖喬治
+瓜地馬拉;瓜地馬拉市
+海地;太子港
+宏都拉斯;德古西加巴
+牙買加;京斯敦
+墨西哥;墨西哥城
+尼加拉瓜;馬納瓜
+巴拿馬;巴拿馬城
+聖克里斯多福及尼維斯;巴士底 (聖克里斯多福及尼維斯)
+聖露西亞;卡斯翠
+聖文森及格瑞那丁;金石城
+千里達及托巴哥;西班牙港
+美國;華盛頓哥倫比亞特區
+阿根廷;布宜諾斯艾利斯
+玻利維亞;蘇克瑞
+巴西;巴西利亞
+智利;聖地牙哥
+哥倫比亞;波哥大
+厄瓜多;基多
+蓋亞那;喬治城
+巴拉圭;亞松森
+秘魯;利馬
+蘇利南;巴拉馬利波
+烏拉圭;蒙特維多
+委內瑞拉;卡拉卡斯
+澳大利亞;坎培拉
+庫克群島;阿瓦魯
+斐濟;蘇瓦
+吉里巴斯;南塔拉瓦
+馬紹爾群島;馬久羅
+密克羅尼西亞;帕里克爾
+諾魯;亞倫
+紐西蘭;威靈頓
+紐埃;阿洛菲
+帛琉;恩吉魯穆德
+巴布亞紐幾內亞;摩斯比港
+薩摩亞;阿庇亞
+索羅門群島;荷尼阿拉
+東加;努瓜婁發
+吐瓦魯;福納佛提
+萬那杜;維拉港`
+            };
+
+            // --- 事件監聽 ---
+            fileUpload.addEventListener('change', handleFileUpload);
+            loadSelectedExampleBtn.addEventListener('click', () => {
+                const selectedKey = exampleSelector.value;
+                if (selectedKey && EXAMPLES[selectedKey]) {
+                    loadData(EXAMPLES[selectedKey]);
+                } else {
+                    showError("請從下拉選單中選擇一個範例。");
+                }
+            });
+
+            prevBtn.addEventListener('click', showPrevCard);
+            nextBtn.addEventListener('click', () => showNextCard('unjudged'));
+            correctBtn.addEventListener('click', () => showNextCard('correct'));
+            incorrectBtn.addEventListener('click', () => showNextCard('incorrect'));
+            mainScreen.addEventListener('click', (e) => { if (e.target === mainScreen) { showNextCard('unjudged'); } });
+            menuBtn.addEventListener('click', toggleMenu);
+            closeMenuBtn.addEventListener('click', toggleMenu);
+            menuOverlay.addEventListener('click', toggleMenu);
+            showAllBtn.addEventListener('click', showAllCardsView);
+            openNewBtn.addEventListener('click', () => { backToUploadScreen(); toggleMenu(); });
+            downloadBtn.addEventListener('click', () => { downloadModal.classList.remove('hidden'); toggleMenu(); });
+            toggleLayoutBtn.addEventListener('click', toggleCardLayout);
+            toggleAutoRevealBtn.addEventListener('click', toggleAutoReveal);
+            closeModalBtn.addEventListener('click', () => allCardsModal.classList.add('hidden'));
+            closeDownloadModalBtn.addEventListener('click', () => downloadModal.classList.add('hidden'));
+            document.querySelectorAll('.download-format-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => downloadData(e.target.dataset.format));
+            });
+            // 新增：教學與字體大小事件監聽
+            howToUseBtn.addEventListener('click', () => { howToUseModal.classList.remove('hidden'); toggleMenu(); });
+            closeHowToUseModalBtn.addEventListener('click', () => { howToUseModal.classList.add('hidden'); });
+            fontSizeIncrease.addEventListener('click', () => {
+                if (cardFontSize < MAX_FONT_SIZE) {
+                    cardFontSize = Math.min(MAX_FONT_SIZE, cardFontSize + FONT_SIZE_STEP);
+                    updateCardFontSize();
+                }
+            });
+            fontSizeDecrease.addEventListener('click', () => {
+                if (cardFontSize > MIN_FONT_SIZE) {
+                    cardFontSize = Math.max(MIN_FONT_SIZE, cardFontSize - FONT_SIZE_STEP);
+                    updateCardFontSize();
+                }
+            });
+
+            // --- 核心功能 ---
+            function loadData(content) {
+                try {
+                    parseFileContent(content);
+                    startGame();
+                } catch (error) {
+                    showError(error.message);
+                    resetApp();
+                }
+            }
+            
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file || !file.name.endsWith('.txt')) { showError("請選擇一個 .txt 檔案。"); return; }
+                const reader = new FileReader();
+                reader.onload = (e) => { loadData(e.target.result); };
+                reader.onerror = () => { showError("讀取檔案時發生錯誤。"); resetApp(); };
+                reader.readAsText(file);
+            }
+            
+            function parseFileContent(content) {
+                const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                if (lines.length === 0) throw new Error("檔案為空或格式不正確。");
+                fieldsPerCard = lines[0].split(';').length;
+                if (fieldsPerCard < 1) throw new Error("檔案格式錯誤，每行至少需有一個欄位。");
+                fullDeck = lines.map((line, index) => {
+                    const fields = line.split(';');
+                    if (fields.length !== fieldsPerCard) throw new Error(`檔案格式錯誤：第 ${index + 1} 行預計有 ${fieldsPerCard} 個欄位，但實際有 ${fields.length} 個。`);
+                    return fields.map(field => field.trim().replace(/\/\//g, '<br>'));
+                });
+            }
+
+            function startGame() {
+                cardStatus.clear();
+                fullDeck.forEach(cardData => { cardStatus.set(JSON.stringify(cardData), 'unseen'); });
+                learningDeck = [...fullDeck];
+                shuffleDeck(learningDeck);
+                uploadScreen.classList.add('hidden');
+                mainScreen.classList.remove('hidden');
+                mainScreen.classList.add('flex');
+                history = [];
+                historyIndex = -1;
+                resetFontSize();
+                showNextCard('new_game');
+            }
+            
+            function restartGame() {
+                fullDeck.forEach(cardData => { cardStatus.set(JSON.stringify(cardData), 'unseen'); });
+                learningDeck = [...fullDeck];
+                shuffleDeck(learningDeck);
+                history = [];
+                historyIndex = -1;
+                [prevBtn, nextBtn, correctBtn, incorrectBtn].forEach(btn => btn.disabled = false);
+                resetFontSize();
+                showNextCard('new_game');
+            }
+
+            function showNextCard(action) {
+                if (historyIndex >= 0 && historyIndex < history.length) {
+                    const currentCardData = history[historyIndex];
+                    const cardKey = JSON.stringify(currentCardData);
+                    if (action === 'correct') {
+                        cardStatus.set(cardKey, 'correct');
+                        learningDeck = learningDeck.filter(cardData => JSON.stringify(cardData) !== cardKey);
+                    } else if (action === 'incorrect') { cardStatus.set(cardKey, 'incorrect'); }
+                }
+
+                let nextCardData;
+                if (historyIndex < history.length - 1) {
+                    historyIndex++;
+                    nextCardData = history[historyIndex];
+                } else {
+                    if (learningDeck.length === 0) { displayEndOfDeck(); return; }
+                    const randomIndex = Math.floor(Math.random() * learningDeck.length);
+                    nextCardData = learningDeck[randomIndex];
+                    history.push(nextCardData);
+                    if (history.length > MAX_HISTORY) { history.shift(); }
+                    historyIndex = history.length - 1;
+                }
+                
+                const nextCardKey = JSON.stringify(nextCardData);
+                if (cardStatus.get(nextCardKey) === 'unseen') { cardStatus.set(nextCardKey, 'unjudged'); }
+                displayCardGroup(nextCardData);
+                updateUI();
+            }
+
+            function showPrevCard() {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    displayCardGroup(history[historyIndex]);
+                } else {
+                    historyAlert.classList.remove('hidden');
+                    setTimeout(() => historyAlert.classList.add('hidden'), 1500);
+                }
+                updateUI();
+            }
+
+            function displayCardGroup(cardData) {
+                cardContainer.innerHTML = '';
+                const layouts = {
+                    horizontal: { 1: 'grid-cols-1 grid-rows-1', 2: 'grid-cols-2 grid-rows-1', 3: 'grid-cols-3 grid-rows-1', 4: 'grid-cols-4 grid-rows-1', 5: 'grid-cols-5 grid-rows-1', 6: 'grid-cols-3 grid-rows-2' },
+                    vertical: { 1: 'grid-cols-1 grid-rows-1', 2: 'grid-cols-1 grid-rows-2', 3: 'grid-cols-1 grid-rows-3', 4: 'grid-cols-1 grid-rows-4', 5: 'grid-cols-2 grid-rows-3', 6: 'grid-cols-2 grid-rows-3' }
+                };
+                cardContainer.className = `grid gap-2 w-full h-full ${layouts[cardLayout][fieldsPerCard] || 'grid-cols-2 grid-rows-2'}`;
+
+                cardData.forEach(content => {
+                    const card = document.createElement('div');
+                    card.className = 'card bg-white dark:bg-gray-700 rounded-xl shadow-md flex items-center justify-center p-4 text-center cursor-pointer transition-transform transform hover:scale-105';
+                    card.innerHTML = `<span class="placeholder text-5xl text-gray-400 dark:text-gray-500">?</span><div class="content">${content}</div>`;
+                    card.addEventListener('click', (e) => { e.stopPropagation(); card.classList.toggle('revealed'); });
+                    cardContainer.appendChild(card);
+                });
+
+                updateCardFontSize(); // 套用當前字體大小
+
+                if (autoRevealFirstCard) {
+                    const firstCard = cardContainer.querySelector('.card');
+                    if (firstCard) firstCard.classList.add('revealed');
+                }
+            }
+
+            function displayEndOfDeck() {
+                cardContainer.innerHTML = `<div class="col-span-full row-span-full flex flex-col items-center justify-center text-center p-8 bg-white dark:bg-gray-700 rounded-xl"><h2 class="text-3xl font-bold mb-4">🎉 恭喜！</h2><p class="text-xl">您已學會所有卡片！</p><button id="restart-btn" class="mt-8 px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors">重新開始</button></div>`;
+                document.getElementById('restart-btn').addEventListener('click', restartGame);
+                [prevBtn, nextBtn, correctBtn, incorrectBtn].forEach(btn => btn.disabled = true);
+                deckInfo.textContent = '完成!';
+            }
+
+            function updateUI() {
+                prevBtn.disabled = historyIndex <= 0;
+                nextBtn.disabled = learningDeck.length === 0 && historyIndex === history.length - 1;
+                deckInfo.textContent = `待學習: ${learningDeck.length} 組`;
+            }
+            
+            // --- 選單和 Modal 功能 ---
+            function toggleMenu() {
+                menuPanel.classList.toggle('open');
+                menuPanel.classList.toggle('closed');
+                menuOverlay.classList.toggle('hidden');
+            }
+            
+            function toggleCardLayout() {
+                cardLayout = (cardLayout === 'horizontal') ? 'vertical' : 'horizontal';
+                if (history.length > 0) displayCardGroup(history[historyIndex]);
+                toggleMenu();
+            }
+
+            function toggleAutoReveal() {
+                autoRevealFirstCard = !autoRevealFirstCard;
+                const statusSpan = toggleAutoRevealBtn.querySelector('span');
+                if (autoRevealFirstCard) {
+                    statusSpan.textContent = '開';
+                    statusSpan.className = 'font-bold text-green-500';
+                } else {
+                    statusSpan.textContent = '關';
+                    statusSpan.className = 'font-bold text-red-500';
+                }
+            }
+            
+            function backToUploadScreen() {
+                resetApp();
+                mainScreen.classList.add('hidden');
+                mainScreen.classList.remove('flex');
+                uploadScreen.classList.remove('hidden');
+                errorMessage.textContent = '';
+            }
+
+            function showAllCardsView() {
+                allCardsModal.classList.remove('hidden');
+                toggleMenu();
+                const statusIcons = { correct: '✅', incorrect: '❌', unjudged: '⬜', unseen: '⬜' };
+                let tableHTML = '<thead><tr class="border-b border-gray-200 dark:border-gray-600"><th class="p-2">狀態</th>';
+                for (let i = 1; i <= fieldsPerCard; i++) { tableHTML += `<th class="p-2">卡片 ${i}</th>`; }
+                tableHTML += '</tr></thead><tbody>';
+                fullDeck.forEach(cardData => {
+                    const key = JSON.stringify(cardData);
+                    const status = cardStatus.get(key) || 'unseen';
+                    tableHTML += `<tr class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-900"><td class="p-2 text-center">${statusIcons[status]}</td>`;
+                    cardData.forEach(field => { tableHTML += `<td class="p-2">${field.replace(/<br>/g, ' ')}</td>`; });
+                    tableHTML += '</tr>';
+                });
+                tableHTML += '</tbody>';
+                allCardsTable.innerHTML = tableHTML;
+            }
+            
+            // --- 下載功能 ---
+            function getCleanData() {
+                const statusIcons = { correct: '✅', incorrect: '❌', unjudged: '⬜', unseen: '⬜' };
+                const headers = ['狀態', ...Array.from({ length: fieldsPerCard }, (_, i) => `卡片 ${i + 1}`)];
+                const rows = fullDeck.map(cardData => {
+                    const key = JSON.stringify(cardData);
+                    const status = cardStatus.get(key) || 'unseen';
+                    return [statusIcons[status], ...cardData.map(field => field.replace(/<br>/g, ' ').replace(/\s+/g, ' ').trim())];
+                });
+                return { headers, rows };
+            }
+
+            function downloadData(format) {
+                const { headers, rows } = getCleanData();
+                const filename = `card_data_${new Date().toISOString().slice(0,10)}`;
+                
+                if (format === 'csv') {
+                    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                    csvContent += headers.join(',') + '\r\n';
+                    rows.forEach(row => {
+                        const rowData = row.map(field => `"${String(field).replace(/"/g, '""')}"`);
+                        csvContent += rowData.join(',') + '\r\n';
+                    });
+                    triggerDownload(encodeURI(csvContent), `${filename}.csv`);
+                } else if (format === 'txt') {
+                    let txtContent = headers.join('\t') + '\r\n';
+                    rows.forEach(row => { txtContent += row.join('\t') + '\r\n'; });
+                    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8,' });
+                    triggerDownload(URL.createObjectURL(blob), `${filename}.txt`);
+                }
+                downloadModal.classList.add('hidden');
+            }
+
+            function triggerDownload(uri, filename) {
+                const link = document.createElement("a");
+                link.href = uri;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // --- 輔助功能 ---
+            // 新增：更新卡片字體大小的函式
+            function updateCardFontSize() {
+                const cards = document.querySelectorAll('#card-container .card');
+                const newSize = `${cardFontSize.toFixed(1)}rem`;
+                cards.forEach(card => {
+                    card.style.fontSize = newSize;
+                });
+                fontSizeValue.textContent = newSize;
+            }
+            
+            // 新增：重設字體大小的函式
+            function resetFontSize() {
+                cardFontSize = DEFAULT_FONT_SIZE;
+                fontSizeValue.textContent = '預設';
+                updateCardFontSize();
+            }
+
+            function shuffleDeck(deckToShuffle) {
+                for (let i = deckToShuffle.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deckToShuffle[i], deckToShuffle[j]] = [deckToShuffle[j], deckToShuffle[i]]; }
+            }
+            function showError(message) { errorMessage.textContent = message; }
+            function resetApp() {
+                fullDeck = []; learningDeck = []; cardStatus.clear(); history = []; historyIndex = -1; fieldsPerCard = 0; fileUpload.value = '';
+            }
+        });
+    </script>
+</body>
+</html>
