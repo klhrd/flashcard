@@ -1,7 +1,8 @@
 # flashcard
 a simple program about flashcards
+[Go Website](https://klhrd.github.io/flashcard/)
 
-[website](https://klhrd.github.io/flashcard/)
+---
 
 # version
 
