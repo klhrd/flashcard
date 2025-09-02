@@ -5,10 +5,6 @@ a simple program about flashcards
 
 # version
 
----
-title: 版本日誌
----
-
 ## v2.1.0
 - flashcard1
 - 2025-08-27
